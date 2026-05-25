@@ -55,28 +55,21 @@ Goal: a top-3 comparison table, a recommended choice, and your explicit go-ahead
 
 ---
 
-## Phase 3 — Detailed Design
+## Phase 3 — Detailed Design ✅
 
-Goal: an implementation-ready design document for the chosen architecture.
+Goal: an implementation-ready design document for the chosen architecture (Arch 1 — Planner–Executor + Playwright).
 
-- [ ] Produce full design doc → `docs/03_design.md`, structured exactly per Task 4 of the system prompt:
-  1. Overview
-  2. High-level system architecture (with textual diagram description)
-  3. Agent roles and responsibilities (inputs, outputs, decision logic)
-  4. Tooling and tech stack
-  5. Data flow and interfaces (request/response shapes)
-  6. Browser automation & scraping strategy
-  7. Ranking, filtering, business logic
-  8. Configuration and extensibility
-  9. Observability, logging, testing
-  10. Security, compliance, ethics
-  11. Implementation roadmap
-- [ ] Specify core data schemas (`FlightSearchRequest`, `FlightResult`, `SearchPlan`, etc.) as pydantic-style sketches in `docs/03_design.md`.
-- [ ] Draft per-agent system prompts → `docs/03_agent_prompts.md`.
-- [ ] Propose repo layout (folders, modules, key files) → `docs/03_repo_structure.md`.
-- [ ] **CHECKPOINT — USER REVIEW:** confirm design before any code is written.
+- [x] Full design doc with all 11 sections + pydantic schema sketches → `docs/03_design.md`
+- [x] Planner system prompt, user templates (initial + re-plan), output schema, few-shot examples, token budget → `docs/03_agent_prompts.md`
+- [x] Repository layout, file-by-file responsibilities, design→code map, `pyproject.toml` skeleton → `docs/03_repo_structure.md`
+- [x] **CHECKPOINT — USER APPROVED** the three design docs.
+- [x] Open questions in §Appendix A resolved:
+  - LLM models: **Haiku 4.5 default, Sonnet 4.6 fallback**
+  - Initial sites: **Google Flights (M3) + Kayak (M5) + Wizz Air (M6)** — two meta-search + one direct LCC. Ryanair considered and excluded due to litigation history.
+  - Default currency: **USD**
+  - CLI name: **`ff`**
 
-**Exit checkpoint:** user has approved `docs/03_design.md`, `docs/03_agent_prompts.md`, and `docs/03_repo_structure.md`.
+**Exit checkpoint:** user has approved all three design docs. Any open questions in §Appendix A of `03_design.md` should be resolved (or explicitly deferred) before M1.
 
 ---
 
@@ -86,13 +79,14 @@ Goal: a working flight finder agent, built in milestones so each step is reviewa
 
 - [ ] **M1 — Skeleton:** create `src/` layout per `docs/03_repo_structure.md`; `pyproject.toml` (or `requirements.txt`); install Playwright; first `pytest` run green on empty tests.
 - [ ] **M2 — Core models:** implement `FlightSearchRequest`, `FlightResult`, and supporting types with unit tests.
-- [ ] **M3 — First site scraper (proof of concept):** implement one site end-to-end — navigate, fill form, parse results, normalize into `FlightResult`.
-- [ ] **M4 — Orchestrator + minimal agent loop:** wire user query → orchestrator → first scraper → normalized results.
-- [ ] **M5 — Second scraper (validate extensibility):** add a second site to prove the abstraction holds.
-- [ ] **M6 — Ranking & filtering:** implement scoring (price, duration, stops) and user-side filters.
-- [ ] **M7 — Observability:** structured logging, retry/backoff, error taxonomy.
-- [ ] **M8 — CLI / entry point:** user-facing command (e.g., `python -m flight_finder ...`) with sensible defaults.
-- [ ] **M9 — Tests:** unit tests for parsers/normalizers; mocked integration tests for the orchestrator.
+- [ ] **M3 — First site scraper (Google Flights):** implement end-to-end — navigate, fill form, parse results, normalize into `FlightResult`.
+- [ ] **M4 — Orchestrator + minimal agent loop:** wire user query → orchestrator → Planner (Haiku) → Google Flights → normalized results.
+- [ ] **M5 — Second scraper (Kayak):** add as second meta-search adapter; validates cross-adapter dedup.
+- [ ] **M6 — Third scraper (Wizz Air):** first *direct-airline* adapter (proves the pattern beyond meta-search). Introduces `route_region()` in `common/airports.py` and `supported_regions` filtering in the Planner so Wizz Air is skipped for non-European routes.
+- [ ] **M7 — Ranking & filtering:** implement scoring (price, duration, stops) and user-side filters.
+- [ ] **M8 — Observability:** structured logging, retry/backoff, error taxonomy.
+- [ ] **M9 — Caching + re-plan loop:** SQLite cache, bounded re-plan attempts, verified with a fake adapter.
+- [ ] **M10 — Tests + CI:** unit tests for parsers/normalizers; mocked integration tests for the orchestrator; CI workflow on push.
 
 **Exit checkpoint:** end-to-end search runs from CLI against at least two sites and returns ranked results.
 
