@@ -6,38 +6,33 @@ Source of truth for the workflow: `flight_finder_system_prompt.txt`.
 
 ---
 
-## Phase 0 — Project Setup
+## Phase 0 — Project Setup ✅
 
 Goal: a clean, version-controlled repo skeleton ready for design and implementation work.
 
 - [x] Connect project folder (`C:\Users\Nir\Documents\Claude\Projects\flight finder agent`)
 - [x] Add system prompt (`flight_finder_system_prompt.txt`)
-- [ ] Create folder skeleton: `docs/`, `src/`, `tests/`, `scripts/`
-- [ ] Add `.gitignore` (Python defaults + `.venv/`, `.env`, `playwright/.cache/`, `node_modules/`, etc.)
-- [ ] Add `README.md` (one paragraph: what this project is, link to `TODO.md` and `flight_finder_system_prompt.txt`)
-- [ ] Add `LICENSE` (choose: MIT recommended for a free/open-source project)
-- [ ] `git init` and first commit
-- [ ] Create GitHub repo and push (details to be provided by user)
+- [x] Create folder skeleton: `docs/`, `src/`, `tests/`, `scripts/`
+- [x] Add `.gitignore`
+- [x] Add `README.md`
+- [x] Add `LICENSE` (MIT)
+- [x] `git init` and first commit (done on host)
+- [x] Create GitHub repo and push — https://github.com/Nir-Aderet/flight_finder_agent (public)
 
-**Exit checkpoint:** repo skeleton committed and pushed to GitHub.
+**Exit checkpoint:** ✅ repo skeleton committed and pushed to GitHub.
 
 ---
 
-## Phase 1 — Architecture Research
+## Phase 1 — Architecture Research ✅
 
 Goal: a written survey of agent architectures applicable to free, browser-based flight search.
 
-- [ ] Survey existing AI agent architectures relevant to travel / flight search:
-  - Single-agent vs multi-agent orchestration
-  - Planner–executor designs
-  - Tool-calling / toolformer agents
-  - RAG-augmented agents
-  - Browser-based agents (Playwright-driven, browser-use, computer-use-style)
-- [ ] Survey candidate free/open-source browser-automation stacks: Playwright, Selenium, browser-use, Puppeteer, Bright Data free tier (if applicable).
-- [ ] Survey scraping-viable travel sites: which permit automated access under ToS / robots.txt, which actively block, which have anti-bot measures worth noting.
-- [ ] Capture all findings (with source links) → `docs/01_research_notes.md`.
+- [x] Survey AI agent architectures (6 patterns: single-agent/ReAct, tool-calling, planner–executor, multi-agent role-based, RAG-augmented, browser-using)
+- [x] Survey free/open-source browser-automation stacks (Playwright, browser-use, Stagehand, Skyvern, Selenium/Puppeteer, Bright Data)
+- [x] Audit scraping viability for 8 travel sites with ToS/robots.txt/anti-bot notes
+- [x] Compile findings → `docs/01_research_notes.md`
 
-**Exit checkpoint:** `docs/01_research_notes.md` exists, covers at least five architecture patterns with citations, and lists at least three candidate travel sites with ToS/robots.txt notes.
+**Exit checkpoint:** ✅ deliverable in `docs/01_research_notes.md`. Provisional shortlist of 3 candidate architectures identified for Phase 2.
 
 ---
 
