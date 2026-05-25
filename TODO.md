@@ -36,22 +36,22 @@ Goal: a written survey of agent architectures applicable to free, browser-based 
 
 ---
 
-## Phase 2 — Architecture Selection
+## Phase 2 — Architecture Selection ✅
 
 Goal: a top-3 comparison table, a recommended choice, and your explicit go-ahead.
 
-- [ ] Define a weighted scoring rubric (proposed defaults — adjustable):
-  - Free/open-source fit — 25%
-  - Robustness & reliability of flight search — 20%
-  - Implementation complexity with Claude Code — 20% (lower complexity scores higher)
-  - Maintainability & extensibility — 15%
-  - Ethical / legal alignment (ToS, robots.txt) — 10%
-  - Scalability potential — 10%
-- [ ] Score the top candidates from Phase 1 against the rubric.
-- [ ] Produce top-3 comparison table + 2–3 sentence summaries → `docs/02_architectures_comparison.md`.
-- [ ] **CHECKPOINT — ASK USER:** "Which architecture would you like to use (1, 2, or 3)? You may also request a hybrid."
+- [x] Rubric locked: 25/20/20/15/10/10 (Free-OSS / Robustness / Impl complexity / Maintainability / Ethics / Scalability)
+- [x] Scored top 3 candidates from Phase 1 against the rubric
+- [x] Produced comparison + scoring tables + per-arch summaries → `docs/02_architectures_comparison.md`
+- [x] Recommendation issued: Arch 3 (Hybrid)
+- [x] **CHOICE RECORDED:** **Arch 1 — Planner–Executor + Playwright**
 
-**Exit checkpoint:** user has chosen an architecture (or specified a hybrid), and the choice is recorded at the top of `docs/02_architectures_comparison.md`.
+**Exit checkpoint:** ✅ user chose Arch 1; recorded at top of `docs/02_architectures_comparison.md`.
+
+### Scores (for reference)
+1. Hybrid Playwright + Stagehand — 4.25 *(recommended, not chosen)*
+2. **Planner–Executor + Playwright — 4.10 *(chosen)***
+3. Multi-agent + browser-use — 3.05
 
 ---
 
