@@ -1,0 +1,245 @@
+<context>
+
+We want to design a flight-finder AI agent that works for free, using only free or open-source tools and services (or free tiers), with no paid proprietary APIs for flight data.
+
+The agent will rely on browser automation and scraping-based approaches to discover flights and prices on public websites that allow such usage under their terms of service.
+
+Example tools we are open to using:
+
+- Playwright: for scripted browser automation and interaction.
+
+- Browser-use (open-source AI automated browser).
+
+- Bright Data scraping browser (only if it has a free or trial tier that fits the "free" constraint).
+
+You should treat these as examples, and you may propose other free/open-source browser automation and scraping tools if they are better suited.
+
+</context>
+
+<goal>
+
+Create a full, detailed design plan (architecture + implementation strategy) that can be implemented using Claude Code for a flight finder agent that:
+
+- Uses only free or open-source tools (or free tiers).
+
+- Automates browser-based search for flights and prices on selected travel sites.
+
+- Is modular, extensible, and maintainable.
+
+- Is realistic to implement by a single developer using Claude Code.
+
+- integrate the repository with my GITHUB account (more details and actions will be provided by me with your instructions).
+
+</goal>
+
+<constraints>
+
+- No paid APIs for flight or travel data; only free or open-source tools, or services with a free tier.
+
+- Respect website terms of service and robots.txt when proposing scraping strategies.
+
+- Prefer languages and frameworks that are well supported in Claude Code (e.g., Python + Playwright).
+
+- Design should be implementable on a typical developer machine or low-cost cloud VM.
+
+- The design should assume the user is a single developer using Claude Code as their primary coding environment.
+
+</constraints>
+
+<assumptions>
+
+- The user is comfortable with Python and basic web development.
+
+- The user can install and run tools like Playwright or browser-use locally.
+
+- The user will manually handle any required account signups for tools that have free tiers.
+
+</assumptions>
+
+<tasks>
+
+1. Research Agent Architectures in Travel
+
+   - Search across credible, reliable, and up-to-date sources for existing AI agent architectures in the travel / flight search domain.
+
+   - Include patterns such as: single-agent vs multi-agent orchestration, planner–executor designs, toolformer/tool-calling agents, RAG-augmented agents, and browser-based agents.
+
+   - Focus on architectures that rely primarily on browser automation and scraping rather than paid APIs.
+
+2. Identify Top 3 Candidate Architectures
+
+   - From the research, select the top 3 architectures that best fit the stated goal and constraints.
+
+   - For each architecture, evaluate at least:
+
+     - Fit for free/open-source tooling.
+
+     - Robustness and reliability of flight search.
+
+     - Complexity of implementation with Claude Code.
+
+     - Maintainability and extensibility.
+
+     - Alignment with ethical and legal constraints (e.g., respecting terms of service).
+
+3. Present a Comparison Table and Ask for Choice
+
+   - Produce a concise comparison table with one row per architecture and columns such as:
+
+     - Architecture Name
+
+     - High-Level Description
+
+     - Number of Agents / Roles
+
+     - Tooling Stack (e.g., Playwright, browser-use, etc.)
+
+     - Pros
+
+     - Cons
+
+     - Estimated Implementation Effort (Low / Medium / High)
+
+     - Scalability Potential
+
+   - After the table, briefly summarize each option in 2–3 sentences.
+
+   - Then explicitly ASK me which architecture I would like to proceed with.
+
+   - Do not proceed to the design plan until I have chosen one of the options (or asked for a hybrid).
+
+4. Create a Full Design Plan for the Chosen Architecture
+
+   - Once I select an architecture, produce a detailed design and implementation plan tailored to Claude Code.
+
+   - The plan MUST be structured with clear sections, for example:
+
+     1. Overview
+
+        - Short description of the architecture and how it applies to the flight finder agent.
+
+     2. High-Level System Architecture
+
+        - Textual description of components and their responsibilities.
+
+        - Logical diagram description (even if not rendered as an image).
+
+     3. Agent Roles and Responsibilities
+
+        - List each agent (e.g., Orchestrator, Flight Search Agent, Browser Agent, Parsing Agent, Validation Agent).
+
+        - Define inputs, outputs, and decision logic for each.
+
+     4. Tooling and Technology Stack
+
+        - Recommended language(s), frameworks, and libraries (e.g., Python, Playwright, browser-use).
+
+        - How Claude Code will be used (coding loop, tests, refactors, multi-file edits).
+
+     5. Data Flow and Interfaces
+
+        - End-to-end request–response flow: user input → orchestration → browser automation → parsing → ranking → final output.
+
+        - Data schemas / structures (e.g., FlightSearchRequest, FlightResult objects).
+
+     6. Browser Automation and Scraping Strategy
+
+        - How to integrate Playwright / browser-use (or other tools) for:
+
+          - Navigating to supported sites.
+
+          - Filling out forms and triggering searches.
+
+          - Handling pagination, date pickers, and dynamic content.
+
+        - Strategies for dealing with:
+
+          - Rate limiting and retries.
+
+          - Errors and timeouts.
+
+          - Captchas and blocking (if applicable, with ethical considerations).
+
+     7. Ranking, Filtering, and Business Logic
+
+        - How flights will be normalized and compared across sites.
+
+        - Filters (price, duration, stops, airline, etc.).
+
+        - Any scoring / ranking heuristics.
+
+     8. Configuration and Extensibility
+
+        - How to add new sites or remove sites.
+
+        - How to parameterize search options and user preferences.
+
+     9. Observability, Logging, and Testing
+
+        - Logging strategy for debugging scraping and agent behavior.
+
+        - Suggested unit tests and integration tests.
+
+        - How Claude Code can be used to create and maintain these tests.
+
+     10. Security, Compliance, and Ethics
+
+        - Guidance on respecting website terms of service and robots.txt.
+
+        - Handling of any sensitive data (if applicable).
+
+     11. Implementation Roadmap
+
+        - Step-by-step implementation plan (phases / milestones).
+
+        - Clear order in which components should be built using Claude Code.
+
+   - Where relevant, include:
+
+     - Example pseudo-code or function signatures (especially for core modules and agent interfaces).
+
+     - Example prompts or system messages for each agent.
+
+     - Suggestions on how to structure the repository (folders, modules) to work well with Claude Code.
+
+5. Claude Code Integration Guidance
+
+   - For the chosen architecture, provide explicit guidance on how to leverage Claude Code effectively, including:
+
+     - How to structure the project so Claude Code can easily navigate and edit files.
+
+     - How to iteratively develop: write initial stubs, add tests, then refine.
+
+     - Suggestions for using Claude Code to refactor, add typing, and improve code quality.
+
+</tasks>
+
+<interaction_style>
+
+- Be concise but complete.
+
+- Use clear headings and bullet points.
+
+- Avoid unnecessary jargon; explain domain-specific terms briefly when first introduced.
+
+- Before committing to a design choice, state your reasoning explicitly.
+
+</interaction_style>
+
+<output_format>
+
+Phase 1 (Architectures):
+
+- Output a markdown table comparing the top 3 architectures.
+
+- Follow with short textual summaries for each.
+
+- End by asking: "Which architecture would you like to use (1, 2, or 3)? You may also request a hybrid."
+
+Phase 2 (Design Plan):
+
+- After I choose an architecture, output a structured markdown document with the sections outlined in Task 4.
+
+- Ensure the design is detailed enough that I could implement it step-by-step in Claude Code without major gaps.
+
+</output_format>
