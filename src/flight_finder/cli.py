@@ -54,6 +54,7 @@ async def _search_async(query: str, top: int, debug: bool) -> None:
 
     from flight_finder.config import load_config, load_secrets
     from flight_finder.executors.google_flights import GoogleFlightsAdapter
+    from flight_finder.executors.kayak import KayakAdapter
     from flight_finder.llm.anthropic_client import AnthropicClient
     from flight_finder.orchestrator.orchestrator import Orchestrator
     from flight_finder.planner.planner import Planner, PlannerError
@@ -75,7 +76,7 @@ async def _search_async(query: str, top: int, debug: bool) -> None:
         fallback_model=cfg.llm.fallback_model,
     )
     orchestrator = Orchestrator(
-        adapters=[GoogleFlightsAdapter()],
+        adapters=[GoogleFlightsAdapter(), KayakAdapter()],
         planner=planner,
         config=cfg.orchestrator,
     )

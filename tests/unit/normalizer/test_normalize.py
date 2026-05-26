@@ -155,9 +155,9 @@ class TestNormalizeGoogleFlights:
 
 
 class TestNormalizeResults:
-    def test_filters_non_google_flights(self) -> None:
+    def test_filters_unknown_adapter(self) -> None:
         wrong = SiteResult(
-            adapter="kayak",
+            adapter="unknown_site",
             payload={"price_text": "$600"},
             captured_at=_CAPTURED,
         )

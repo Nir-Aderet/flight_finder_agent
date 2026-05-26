@@ -3,11 +3,17 @@ from __future__ import annotations
 import re
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from typing import Callable
 
 from flight_finder.models.query import FlightSearchRequest
 from flight_finder.models.result import NormalizedFlight, Segment, SiteResult
 
 _IATA_RE = re.compile(r"^[A-Z]{3}$")
+
+
+# ---------------------------------------------------------------------------
+# Primitive parsers (pure, no I/O)
+# ---------------------------------------------------------------------------
 
 
 def _parse_price(price_text: str) -> Decimal | None:
@@ -42,10 +48,20 @@ def _parse_time(time_text: str, base: date) -> datetime:
     return datetime(base.year, base.month, base.day)
 
 
-def normalize_google_flights(
+# ---------------------------------------------------------------------------
+# Shared payload → NormalizedFlight (used by all adapters with standard payload)
+# ---------------------------------------------------------------------------
+
+
+def _normalize_standard_payload(
     site_result: SiteResult,
     request: FlightSearchRequest,
 ) -> NormalizedFlight | None:
+    """Convert a standard SiteResult payload (shared format) to NormalizedFlight.
+
+    Both Google Flights and Kayak emit the same payload shape, so this function
+    handles both. The ``source_adapter`` is taken from ``site_result.adapter``.
+    """
     p = site_result.payload
     price = _parse_price(p.get("price_text", ""))
     if price is None:
@@ -71,8 +87,8 @@ def normalize_google_flights(
     )
 
     return NormalizedFlight(
-        source_adapter="google_flights",
-        sources=["google_flights"],
+        source_adapter=site_result.adapter,
+        sources=[site_result.adapter],
         price=price,
         currency=request.currency,
         segments=[segment],
@@ -82,14 +98,44 @@ def normalize_google_flights(
     )
 
 
+# ---------------------------------------------------------------------------
+# Per-adapter normalize functions (thin wrappers for future divergence)
+# ---------------------------------------------------------------------------
+
+
+def normalize_google_flights(
+    site_result: SiteResult,
+    request: FlightSearchRequest,
+) -> NormalizedFlight | None:
+    return _normalize_standard_payload(site_result, request)
+
+
+def normalize_kayak(
+    site_result: SiteResult,
+    request: FlightSearchRequest,
+) -> NormalizedFlight | None:
+    return _normalize_standard_payload(site_result, request)
+
+
+# ---------------------------------------------------------------------------
+# Dispatch table and public entry point
+# ---------------------------------------------------------------------------
+
+_NORMALIZERS: dict[str, Callable[[SiteResult, FlightSearchRequest], NormalizedFlight | None]] = {
+    "google_flights": normalize_google_flights,
+    "kayak": normalize_kayak,
+}
+
+
 def normalize_results(
     site_results: list[SiteResult],
     request: FlightSearchRequest,
 ) -> list[NormalizedFlight]:
     normalized: list[NormalizedFlight] = []
     for r in site_results:
-        if r.adapter == "google_flights":
-            nf = normalize_google_flights(r, request)
+        fn = _NORMALIZERS.get(r.adapter)
+        if fn is not None:
+            nf = fn(r, request)
             if nf is not None:
                 normalized.append(nf)
     return normalized

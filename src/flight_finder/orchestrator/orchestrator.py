@@ -17,6 +17,7 @@ from flight_finder.models.orchestrator import AuditRecord, FailureContext, Orche
 from flight_finder.models.plan import SearchStep
 from flight_finder.models.query import FlightSearchRequest
 from flight_finder.models.result import NormalizedFlight
+from flight_finder.normalizer.dedup import dedup_flights
 from flight_finder.normalizer.normalize import normalize_results
 from flight_finder.planner.planner import Planner
 
@@ -106,7 +107,7 @@ class Orchestrator:
         assert resolved_query is not None
         return OrchestratorResult(
             query=resolved_query,
-            flights=all_flights,
+            flights=dedup_flights(all_flights),
             audit=all_audit,
             replan_attempts=replan_attempt,
         )

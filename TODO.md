@@ -81,7 +81,7 @@ Goal: a working flight finder agent, built in milestones so each step is reviewa
 - [x] **M2 — Core models:** implement `FlightSearchRequest`, `FlightResult`, and supporting types with unit tests.
 - [x] **M3 — First site scraper (Google Flights):** implement end-to-end — navigate, fill form, parse results, normalize into `FlightResult`.
 - [x] **M4 — Orchestrator + minimal agent loop:** wire user query → orchestrator → Planner (Haiku) → Google Flights → normalized results.
-- [ ] **M5 — Second scraper (Kayak):** add as second meta-search adapter; validates cross-adapter dedup.
+- [x] **M5 — Second scraper (Kayak):** add as second meta-search adapter; validates cross-adapter dedup.
 - [ ] **M6 — Third scraper (Wizz Air):** first *direct-airline* adapter (proves the pattern beyond meta-search). Introduces `route_region()` in `common/airports.py` and `supported_regions` filtering in the Planner so Wizz Air is skipped for non-European routes.
 - [ ] **M7 — Ranking & filtering:** implement scoring (price, duration, stops) and user-side filters.
 - [ ] **M8 — Observability:** structured logging, retry/backoff, error taxonomy.
