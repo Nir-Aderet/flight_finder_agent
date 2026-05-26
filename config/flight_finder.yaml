@@ -1,0 +1,42 @@
+# flight-finder default configuration
+#
+# This file ships as the lowest layer of the config stack. User overrides go in
+# ~/.flight_finder/config.yaml, then environment variables (FLIGHT_FINDER_*),
+# then CLI flags. See docs/03_design.md §8 for details.
+#
+# Sections are populated as milestones land — placeholders are commented out.
+
+llm:
+  primary_model: "claude-haiku-4-5"
+  fallback_model: "claude-sonnet-4-6"
+  request_timeout_seconds: 30
+
+adapters:
+  # Populated as adapters land. Each entry: name + enabled flag + per-adapter overrides.
+  enabled: []
+  # - { name: "google_flights", enabled: true }   # M3
+  # - { name: "kayak",          enabled: true }   # M5
+  # - { name: "wizz_air",       enabled: true }   # M6
+
+ranking:
+  # Default weights — see docs/03_design.md §7.2. Must sum to 1.0.
+  weights:
+    price: 0.45
+    duration: 0.25
+    stops: 0.15
+    depart_time: 0.10
+    airline: 0.05
+
+cache:
+  ttl_seconds: 3600          # 1 hour
+  path: "~/.flight_finder/cache.db"
+
+rate_limit:
+  # Per-host minimum interval between requests (token bucket). Adapters may
+  # ask for a slower rate, never a faster one.
+  default_per_host_min_interval_seconds: 2.0
+
+orchestrator:
+  per_step_timeout_seconds: 90
+  total_run_timeout_seconds: 300
+  max_replan_attempts: 2
