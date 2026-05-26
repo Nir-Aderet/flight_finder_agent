@@ -19,7 +19,7 @@ class SiteResult(BaseModel):
 
 class Segment(BaseModel):
     airline: str
-    flight_number: str
+    flight_number: str = ""
     origin: IATACode
     destination: IATACode
     depart_at: datetime

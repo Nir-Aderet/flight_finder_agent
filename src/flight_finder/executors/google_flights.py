@@ -120,7 +120,11 @@ class GoogleFlightsAdapter:
         name="google_flights",
         supported_cabin_classes=["economy", "premium", "business", "first"],
         supports_multi_city=True,
+        supports_round_trip=True,
+        supported_regions=["NA", "EU", "APAC", "LATAM", "MEA", "AF"],
         max_passengers=9,
+        supported_currencies=["USD", "EUR", "GBP"],
+        typical_latency_ms=4500,
     )
 
     async def execute(self, step: SearchStep, ctx: ExecutionContext) -> ExecutionResult:
@@ -180,7 +184,7 @@ class GoogleFlightsAdapter:
             return SiteResults(results=results)
 
         except BlockedByAntiBot as exc:
-            return SiteFailure(reason=str(exc), retryable=False, error_type="anti_bot")
+            return SiteFailure(reason=str(exc), retryable=False, error_type="blocked_by_anti_bot")
         except Exception as exc:
             return SiteFailure(reason=str(exc), retryable=True, error_type="unknown")
         finally:

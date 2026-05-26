@@ -1,0 +1,95 @@
+from __future__ import annotations
+
+import re
+from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
+
+from flight_finder.models.query import FlightSearchRequest
+from flight_finder.models.result import NormalizedFlight, Segment, SiteResult
+
+_IATA_RE = re.compile(r"^[A-Z]{3}$")
+
+
+def _parse_price(price_text: str) -> Decimal | None:
+    cleaned = re.sub(r"[^\d.]", "", price_text)
+    if not cleaned:
+        return None
+    try:
+        return Decimal(cleaned)
+    except InvalidOperation:
+        return None
+
+
+def _parse_duration(duration_text: str) -> timedelta:
+    hours = 0
+    minutes = 0
+    h_m = re.search(r"(\d+)\s*hr", duration_text)
+    m_m = re.search(r"(\d+)\s*min", duration_text)
+    if h_m:
+        hours = int(h_m.group(1))
+    if m_m:
+        minutes = int(m_m.group(1))
+    return timedelta(hours=hours, minutes=minutes)
+
+
+def _parse_time(time_text: str, base: date) -> datetime:
+    for fmt in ("%I:%M %p", "%I %p"):
+        try:
+            t = datetime.strptime(time_text, fmt)
+            return datetime(base.year, base.month, base.day, t.hour, t.minute)
+        except ValueError:
+            continue
+    return datetime(base.year, base.month, base.day)
+
+
+def normalize_google_flights(
+    site_result: SiteResult,
+    request: FlightSearchRequest,
+) -> NormalizedFlight | None:
+    p = site_result.payload
+    price = _parse_price(p.get("price_text", ""))
+    if price is None:
+        return None
+
+    duration = _parse_duration(p.get("duration_text", ""))
+    depart_dt = _parse_time(p.get("depart_time_text", ""), request.depart_date)
+    arrive_dt = depart_dt + duration
+
+    raw_origin = str(p.get("origin", request.origin))
+    raw_dest = str(p.get("destination", request.destination))
+    seg_origin = raw_origin if _IATA_RE.match(raw_origin) else request.origin
+    seg_dest = raw_dest if _IATA_RE.match(raw_dest) else request.destination
+
+    segment = Segment(
+        airline=p.get("airline", ""),
+        flight_number="",
+        origin=seg_origin,
+        destination=seg_dest,
+        depart_at=depart_dt,
+        arrive_at=arrive_dt,
+        duration=duration,
+    )
+
+    return NormalizedFlight(
+        source_adapter="google_flights",
+        sources=["google_flights"],
+        price=price,
+        currency=request.currency,
+        segments=[segment],
+        stops=p.get("stops", 0),
+        total_duration=duration,
+        booking_url=p.get("booking_url"),
+    )
+
+
+def normalize_results(
+    site_results: list[SiteResult],
+    request: FlightSearchRequest,
+) -> list[NormalizedFlight]:
+    normalized: list[NormalizedFlight] = []
+    for r in site_results:
+        if r.adapter == "google_flights":
+            nf = normalize_google_flights(r, request)
+            if nf is not None:
+                normalized.append(nf)
+    return normalized

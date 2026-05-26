@@ -21,6 +21,7 @@ class AuditRecord(BaseModel):
 class FailureContext(BaseModel):
     adapter: str
     reason: str
+    detail: str = ""
     retryable: bool
     attempt: int = Field(ge=0)
 
