@@ -5,13 +5,13 @@ import re
 import time
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
 
 from flight_finder.common.logging import get_logger
 from flight_finder.common.retry import adapter_retry
-from flight_finder.executors import kayak_selectors as sel
+from flight_finder.common.robots import RobotsChecker, RobotsDisallowed
+from flight_finder.executors import wizz_air_selectors as sel
 from flight_finder.executors.base import (
     BlockedByAntiBot,
     ExecutionContext,
@@ -29,35 +29,35 @@ from flight_finder.models.capabilities import AdapterCapabilities
 from flight_finder.models.plan import SearchStep
 from flight_finder.models.result import SiteResult
 
-_BASE_URL = "https://www.kayak.com/flights"
-_RATE_LIMIT_DELAY = 2.0
+_BASE_URL = "https://wizzair.com"
+_RATE_LIMIT_DELAY = 3.0  # Wizz Air is a direct airline; be more conservative
 
 
-def _build_search_url(step_query: Any) -> str:
-    route = f"{step_query.origin}-{step_query.destination}"
-    path = f"{_BASE_URL}/{route}/{step_query.depart_date.isoformat()}"
-    if step_query.return_date:
-        path += f"/{step_query.return_date.isoformat()}"
-    params: dict[str, str] = {}
-    if step_query.passengers > 1:
-        params["travelers"] = f"{step_query.passengers}a"
-    if params:
-        path += "?" + urlencode(params)
-    return path
+def _build_search_url(req: Any) -> str:
+    date_str = req.depart_date.isoformat()
+    pax = getattr(req, "passengers", 1)
+    return (
+        f"{_BASE_URL}/en-gb/flights/search"
+        f"/{req.origin}/{req.destination}/{date_str}/null/{pax}/0/0/null"
+    )
 
 
 def _parse_stops(stops_text: str) -> int:
     text = stops_text.strip().lower()
-    if text == "nonstop":
+    if text in ("direct", "nonstop"):
         return 0
     m = re.match(r"(\d+)\s+stop", text)
     return int(m.group(1)) if m else 0
 
 
-def _parse_arrive_time(el: Any) -> tuple[str, bool]:
-    arrives_next_day = el.find("sup") is not None
-    text = re.sub(r"\+\d+", "", el.get_text(strip=True)).strip()
-    return text, arrives_next_day
+def _detect_currency(price_text: str) -> str:
+    if price_text.startswith("£"):
+        return "GBP"
+    if price_text.startswith("€"):
+        return "EUR"
+    if price_text.startswith("$"):
+        return "USD"
+    return "EUR"  # Wizz Air default display currency in Europe
 
 
 def parse_results_html(
@@ -66,7 +66,7 @@ def parse_results_html(
     destination: str,
     captured_at: datetime | None = None,
 ) -> list[SiteResult]:
-    """Parse rendered Kayak HTML into raw SiteResult records.
+    """Parse rendered Wizz Air HTML into raw SiteResult records.
 
     Pure function — no browser required. Adapter's execute() calls
     page.content() then passes the HTML here.
@@ -83,7 +83,8 @@ def parse_results_html(
         arrive_el = card.select_one(sel.ARRIVE_TIME)
         airline_el = card.select_one(sel.AIRLINE_NAME)
         duration_el = card.select_one(sel.DURATION)
-        airports_el = card.select_one(sel.AIRPORTS)
+        origin_el = card.select_one(sel.DEPART_AIRPORT)
+        dest_el = card.select_one(sel.ARRIVE_AIRPORT)
         stops_el = card.select_one(sel.STOPS)
         price_el = card.select_one(sel.PRICE)
 
@@ -91,62 +92,70 @@ def parse_results_html(
             continue
 
         depart_text = depart_el.get_text(strip=True)
-
-        arrive_text, arrives_next_day = "", False
-        if arrive_el:
-            arrive_text, arrives_next_day = _parse_arrive_time(arrive_el)
-
-        airline_text = airline_el.get_text(strip=True) if airline_el else ""
+        arrive_text = arrive_el.get_text(strip=True) if arrive_el else ""
+        airline_text = airline_el.get_text(strip=True) if airline_el else "Wizz Air"
         duration_text = duration_el.get_text(strip=True) if duration_el else ""
 
-        card_origin, card_dest = origin, destination
-        if airports_el:
-            parts = airports_el.get_text(strip=True).split("–")
-            if len(parts) == 2:
-                card_origin = parts[0].strip()
-                card_dest = parts[1].strip()
+        card_origin = origin_el.get_text(strip=True) if origin_el else origin
+        card_dest = dest_el.get_text(strip=True) if dest_el else destination
 
-        stops_text = stops_el.get_text(strip=True) if stops_el else "Nonstop"
+        stops_text = stops_el.get_text(strip=True) if stops_el else "Direct"
         stops = _parse_stops(stops_text)
         price_text = price_el.get_text(strip=True)
+        currency = _detect_currency(price_text)
 
         payload: dict[str, Any] = {
             "price_text": price_text,
             "airline": airline_text,
             "depart_time_text": depart_text,
             "arrive_time_text": arrive_text,
-            "arrives_next_day": arrives_next_day,
+            "arrives_next_day": False,
             "duration_text": duration_text,
             "stops": stops,
             "stops_text": stops_text,
             "origin": card_origin,
             "destination": card_dest,
+            "currency": currency,
             "booking_url": None,
         }
         results.append(
-            SiteResult(adapter="kayak", payload=payload, captured_at=captured_at)
+            SiteResult(adapter="wizz_air", payload=payload, captured_at=captured_at)
         )
 
     return results
 
 
-class KayakAdapter:
-    name = "kayak"
+class WizzAirAdapter:
+    name = "wizz_air"
     capabilities = AdapterCapabilities(
-        name="kayak",
-        supported_cabin_classes=["economy", "premium", "business", "first"],
-        supports_multi_city=True,
+        name="wizz_air",
+        supported_cabin_classes=["economy", "plus"],
+        supports_multi_city=False,
         supports_round_trip=True,
-        supported_regions=["NA", "EU", "APAC", "LATAM"],
-        max_passengers=8,
-        supported_currencies=["USD", "EUR", "GBP"],
-        typical_latency_ms=6200,
+        supported_regions=["EU", "MEA"],
+        max_passengers=6,
+        supported_currencies=["EUR", "GBP", "PLN", "HUF"],
+        typical_latency_ms=7000,
     )
 
+    def __init__(
+        self, robots_checker: RobotsChecker | None = None
+    ) -> None:
+        self._robots = robots_checker or RobotsChecker(user_agent="flight_finder")
+
     async def execute(self, step: SearchStep, ctx: ExecutionContext) -> ExecutionResult:
-        log = get_logger("kayak")
+        log = get_logger("wizz_air")
         t0 = time.monotonic()
         log.info("adapter.start", adapter=self.name)
+
+        # robots.txt compliance — checked once before any browser launch
+        req = step.query
+        try:
+            path = f"/en-gb/flights/search/{req.origin}/{req.destination}"
+            await self._robots.assert_allowed(_BASE_URL, path)
+        except RobotsDisallowed as exc:
+            log.warning("adapter.robots_disallowed", adapter=self.name, reason=str(exc))
+            return SiteFailure(reason=str(exc), retryable=False, error_type="robots_disallowed")
 
         result = SiteResults(results=[])
         try:
@@ -188,7 +197,7 @@ class KayakAdapter:
 
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-            await _dismiss_kayak_consent(page)
+            await _dismiss_wizz_air_consent(page)
             await wait_for_results(page, sel.FLIGHT_ITEM, timeout=45_000)
             await detect_anti_bot(page)
 
@@ -205,13 +214,12 @@ class KayakAdapter:
             await browser_ctx.close()
 
 
-async def _dismiss_kayak_consent(page: Any, timeout: int = 3000) -> None:
-    """Try each Kayak-specific consent selector; silently skip if none found."""
+async def _dismiss_wizz_air_consent(page: Any, timeout: int = 3000) -> None:
+    """Try Wizz Air-specific cookie-consent selectors; silently skip if none found."""
     for btn_sel in sel.CONSENT_BTNS:
         try:
             await page.click(btn_sel, timeout=timeout)
             return
         except Exception:
             continue
-    # Fall back to the shared helper for any remaining patterns
     await dismiss_consent_dialog(page, timeout=timeout)

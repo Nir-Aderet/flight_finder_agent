@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime, timezone
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
+from flight_finder.common.cache import FlightCache
 from flight_finder.config import OrchestratorConfig
 from flight_finder.executors.base import ExecutionContext, SiteFailure, SiteResults
 from flight_finder.llm.client import LLMResponse
@@ -103,10 +105,33 @@ def _mock_browser() -> MagicMock:
     return MagicMock()
 
 
+class MultiResultFakeAdapter:
+    """Adapter that cycles through a list of pre-configured results."""
+
+    name = "fake"
+    capabilities = AdapterCapabilities(
+        name="fake",
+        supported_regions=["NA", "EU"],
+        supported_cabin_classes=["economy"],
+    )
+
+    def __init__(self, results: list[SiteResults | SiteFailure]) -> None:
+        self._results = results
+        self._idx = 0
+        self.call_count = 0
+
+    async def execute(self, step: SearchStep, ctx: ExecutionContext) -> SiteResults | SiteFailure:
+        self.call_count += 1
+        result = self._results[min(self._idx, len(self._results) - 1)]
+        self._idx += 1
+        return result
+
+
 def _make_orchestrator(
-    adapter: FakeAdapter,
+    adapter: FakeAdapter | MultiResultFakeAdapter,
     llm_responses: list[str],
     max_replan: int = 2,
+    cache: FlightCache | None = None,
 ) -> Orchestrator:
     llm = FakeLLMClient(llm_responses)
     planner = Planner(llm=llm)
@@ -114,7 +139,7 @@ def _make_orchestrator(
         per_step_timeout_seconds=30,
         max_replan_attempts=max_replan,
     )
-    return Orchestrator(adapters=[adapter], planner=planner, config=cfg)
+    return Orchestrator(adapters=[adapter], planner=planner, config=cfg, cache=cache)
 
 
 # ---------------------------------------------------------------------------
@@ -199,3 +224,81 @@ class TestOrchestratorEmptyPlan:
         orch = _make_orchestrator(adapter, [_plan_json("fake")])
         result = await orch.run(query="SFO to CDG", browser=_mock_browser())
         assert len(result.flights) >= 0  # just confirm it doesn't crash
+
+
+class TestOrchestratorCache:
+    async def test_cache_hit_skips_adapter(self, tmp_path: Path) -> None:
+        adapter = FakeAdapter(SiteResults(results=[_site_result()]))
+        async with FlightCache(tmp_path / "cache.db") as cache:
+            orch = _make_orchestrator(adapter, [_plan_json("fake")], cache=cache)
+            # First run — populates cache
+            result1 = await orch.run(query="SFO to CDG", browser=_mock_browser())
+            assert adapter.call_count == 1
+
+            # Second run — should hit cache, adapter never called again
+            result2 = await orch.run(query="SFO to CDG", browser=_mock_browser())
+            assert adapter.call_count == 1  # still 1
+            assert len(result2.flights) == len(result1.flights)
+
+    async def test_cache_miss_populates_cache(self, tmp_path: Path) -> None:
+        adapter = FakeAdapter(SiteResults(results=[_site_result()]))
+        async with FlightCache(tmp_path / "cache.db") as cache:
+            orch = _make_orchestrator(adapter, [_plan_json("fake")], cache=cache)
+            # First call — cache is empty
+            result = await orch.run(query="SFO to CDG", browser=_mock_browser())
+            assert adapter.call_count == 1
+            assert len(result.flights) == 1
+
+            # Verify the entry is now in the cache
+            from flight_finder.models.query import FlightSearchRequest
+            from datetime import date as _date
+            req = FlightSearchRequest(
+                origin="SFO",
+                destination="CDG",
+                depart_date=_date(2026, 6, 1),
+                passengers=1,
+                cabin="economy",
+            )
+            cached = await cache.get(req)
+            assert cached is not None
+            assert len(cached.flights) == 1
+
+    async def test_no_cache_runs_normally(self) -> None:
+        adapter = FakeAdapter(SiteResults(results=[_site_result()]))
+        orch = _make_orchestrator(adapter, [_plan_json("fake")], cache=None)
+        result = await orch.run(query="SFO to CDG", browser=_mock_browser())
+        assert len(result.flights) == 1
+        assert adapter.call_count == 1
+
+
+class TestOrchestratorZeroResultsReplan:
+    async def test_replan_triggered_on_zero_results(self) -> None:
+        # First call returns empty results → triggers re-plan; second call succeeds
+        adapter = MultiResultFakeAdapter([
+            SiteResults(results=[]),
+            SiteResults(results=[_site_result()]),
+        ])
+        llm = FakeLLMClient([_plan_json("fake"), _plan_json("fake")])
+        planner = Planner(llm=llm)
+        cfg = OrchestratorConfig(max_replan_attempts=1)
+        orch = Orchestrator(adapters=[adapter], planner=planner, config=cfg)
+
+        result = await orch.run(query="SFO to CDG", browser=_mock_browser())
+
+        assert len(result.flights) == 1
+        assert result.replan_attempts == 1
+        assert adapter.call_count == 2
+        assert llm.call_count == 2
+
+    async def test_zero_results_exhausted_returns_empty(self) -> None:
+        # Adapter always returns empty → exhausts re-plan budget
+        adapter = MultiResultFakeAdapter([SiteResults(results=[])])
+        llm = FakeLLMClient([_plan_json("fake"), _plan_json("fake")])
+        planner = Planner(llm=llm)
+        cfg = OrchestratorConfig(max_replan_attempts=1)
+        orch = Orchestrator(adapters=[adapter], planner=planner, config=cfg)
+
+        result = await orch.run(query="SFO to CDG", browser=_mock_browser())
+
+        assert result.flights == []
+        assert result.replan_attempts == 1

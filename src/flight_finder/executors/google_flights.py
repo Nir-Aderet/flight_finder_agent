@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from datetime import datetime, timezone
 from typing import Any
 
 from bs4 import BeautifulSoup
 
+from flight_finder.common.logging import get_logger
+from flight_finder.common.retry import adapter_retry
 from flight_finder.executors import google_flights_selectors as sel
 from flight_finder.executors.base import (
     BlockedByAntiBot,
@@ -18,6 +21,7 @@ from flight_finder.executors.base import (
 from flight_finder.executors.playwright_base import (
     detect_anti_bot,
     dismiss_consent_dialog,
+    save_debug_artifacts,
     wait_for_results,
 )
 from flight_finder.models.capabilities import AdapterCapabilities
@@ -25,7 +29,7 @@ from flight_finder.models.plan import SearchStep
 from flight_finder.models.result import SiteResult
 
 _BASE_URL = "https://www.google.com/travel/flights"
-_RATE_LIMIT_DELAY = 2.0  # seconds between requests (M8 will replace with token bucket)
+_RATE_LIMIT_DELAY = 2.0
 
 
 def _parse_stops(stops_text: str) -> int:
@@ -128,6 +132,33 @@ class GoogleFlightsAdapter:
     )
 
     async def execute(self, step: SearchStep, ctx: ExecutionContext) -> ExecutionResult:
+        log = get_logger("google_flights")
+        t0 = time.monotonic()
+        log.info("adapter.start", adapter=self.name)
+
+        result = SiteResults(results=[])
+        try:
+            async for attempt in adapter_retry():
+                with attempt:
+                    result = await self._fetch(step, ctx)
+            elapsed_ms = round((time.monotonic() - t0) * 1000)
+            log.info(
+                "adapter.success",
+                adapter=self.name,
+                result_count=len(result.results),
+                elapsed_ms=elapsed_ms,
+            )
+            return result
+        except BlockedByAntiBot as exc:
+            elapsed_ms = round((time.monotonic() - t0) * 1000)
+            log.warning("adapter.blocked", adapter=self.name, reason=str(exc), elapsed_ms=elapsed_ms)
+            return SiteFailure(reason=str(exc), retryable=False, error_type="blocked_by_anti_bot")
+        except Exception as exc:
+            elapsed_ms = round((time.monotonic() - t0) * 1000)
+            log.error("adapter.failure", adapter=self.name, reason=str(exc), elapsed_ms=elapsed_ms)
+            return SiteFailure(reason=str(exc), retryable=True, error_type="unknown")
+
+    async def _fetch(self, step: SearchStep, ctx: ExecutionContext) -> SiteResults:
         req = step.query
         await asyncio.sleep(_RATE_LIMIT_DELAY)
 
@@ -138,6 +169,9 @@ class GoogleFlightsAdapter:
             )
         )
         page = await browser_ctx.new_page()
+
+        if ctx.debug:
+            await browser_ctx.tracing.start(screenshots=True, snapshots=True)
 
         try:
             await page.goto(_BASE_URL, wait_until="domcontentloaded", timeout=30_000)
@@ -183,9 +217,9 @@ class GoogleFlightsAdapter:
             results = parse_results_html(html, req.origin, req.destination, captured_at)
             return SiteResults(results=results)
 
-        except BlockedByAntiBot as exc:
-            return SiteFailure(reason=str(exc), retryable=False, error_type="blocked_by_anti_bot")
-        except Exception as exc:
-            return SiteFailure(reason=str(exc), retryable=True, error_type="unknown")
+        except Exception:
+            if ctx.debug:
+                await save_debug_artifacts(browser_ctx, page, self.name)
+            raise
         finally:
             await browser_ctx.close()

@@ -29,8 +29,9 @@ def _parse_price(price_text: str) -> Decimal | None:
 def _parse_duration(duration_text: str) -> timedelta:
     hours = 0
     minutes = 0
-    h_m = re.search(r"(\d+)\s*hr", duration_text)
-    m_m = re.search(r"(\d+)\s*min", duration_text)
+    # Matches both "11 hr 15 min" and compact "2h 45m"
+    h_m = re.search(r"(\d+)\s*h", duration_text)
+    m_m = re.search(r"(\d+)\s*m(?:in)?\b", duration_text)
     if h_m:
         hours = int(h_m.group(1))
     if m_m:
@@ -39,7 +40,8 @@ def _parse_duration(duration_text: str) -> timedelta:
 
 
 def _parse_time(time_text: str, base: date) -> datetime:
-    for fmt in ("%I:%M %p", "%I %p"):
+    # Try 24-hour first (Wizz Air), then 12-hour AM/PM (Google Flights, Kayak)
+    for fmt in ("%H:%M", "%I:%M %p", "%I %p"):
         try:
             t = datetime.strptime(time_text, fmt)
             return datetime(base.year, base.month, base.day, t.hour, t.minute)
@@ -117,6 +119,19 @@ def normalize_kayak(
     return _normalize_standard_payload(site_result, request)
 
 
+def normalize_wizz_air(
+    site_result: SiteResult,
+    request: FlightSearchRequest,
+) -> NormalizedFlight | None:
+    nf = _normalize_standard_payload(site_result, request)
+    if nf is None:
+        return None
+    # Use the currency detected from the price symbol (GBP/EUR) rather than
+    # the request's default USD, since Wizz Air prices are not in USD.
+    detected_currency = str(site_result.payload.get("currency", request.currency))
+    return nf.model_copy(update={"currency": detected_currency})
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table and public entry point
 # ---------------------------------------------------------------------------
@@ -124,6 +139,7 @@ def normalize_kayak(
 _NORMALIZERS: dict[str, Callable[[SiteResult, FlightSearchRequest], NormalizedFlight | None]] = {
     "google_flights": normalize_google_flights,
     "kayak": normalize_kayak,
+    "wizz_air": normalize_wizz_air,
 }
 
 

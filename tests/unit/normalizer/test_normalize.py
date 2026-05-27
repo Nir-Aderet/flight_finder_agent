@@ -13,6 +13,7 @@ from flight_finder.normalizer.normalize import (
     _parse_time,
     normalize_google_flights,
     normalize_results,
+    normalize_wizz_air,
 )
 
 _REQ = FlightSearchRequest(origin="SFO", destination="CDG", depart_date=date(2026, 6, 1))
@@ -71,6 +72,12 @@ class TestParseDuration:
     def test_compact_format(self) -> None:
         assert _parse_duration("2hr30min") == timedelta(hours=2, minutes=30)
 
+    def test_wizz_air_compact_format(self) -> None:
+        assert _parse_duration("2h 45m") == timedelta(hours=2, minutes=45)
+
+    def test_wizz_air_hours_only(self) -> None:
+        assert _parse_duration("3h") == timedelta(hours=3)
+
 
 class TestParseTime:
     def test_am_time(self) -> None:
@@ -88,6 +95,18 @@ class TestParseTime:
     def test_unparseable_returns_midnight(self) -> None:
         dt = _parse_time("", date(2026, 6, 1))
         assert dt == datetime(2026, 6, 1, 0, 0)
+
+    def test_24h_format(self) -> None:
+        dt = _parse_time("06:30", date(2026, 6, 1))
+        assert dt == datetime(2026, 6, 1, 6, 30)
+
+    def test_24h_noon(self) -> None:
+        dt = _parse_time("12:00", date(2026, 6, 1))
+        assert dt == datetime(2026, 6, 1, 12, 0)
+
+    def test_24h_midnight(self) -> None:
+        dt = _parse_time("00:45", date(2026, 6, 1))
+        assert dt == datetime(2026, 6, 1, 0, 45)
 
 
 class TestNormalizeGoogleFlights:
@@ -154,6 +173,63 @@ class TestNormalizeGoogleFlights:
         assert seg.depart_at.minute == 30
 
 
+_WIZZ_REQ = FlightSearchRequest(origin="LTN", destination="BUD", depart_date=date(2026, 6, 1))
+
+
+def _make_wizz_result(**overrides: object) -> SiteResult:
+    payload: dict[str, object] = {
+        "price_text": "£59",
+        "airline": "Wizz Air",
+        "depart_time_text": "06:30",
+        "arrive_time_text": "10:15",
+        "arrives_next_day": False,
+        "duration_text": "2h 45m",
+        "stops": 0,
+        "stops_text": "Direct",
+        "origin": "LTN",
+        "destination": "BUD",
+        "currency": "GBP",
+        "booking_url": None,
+    }
+    payload.update(overrides)
+    return SiteResult(adapter="wizz_air", payload=payload, captured_at=_CAPTURED)
+
+
+class TestNormalizeWizzAir:
+    def test_happy_path(self) -> None:
+        nf = normalize_wizz_air(_make_wizz_result(), _WIZZ_REQ)
+        assert nf is not None
+        assert nf.price == Decimal("59")
+        assert nf.currency == "GBP"
+        assert nf.stops == 0
+        assert nf.source_adapter == "wizz_air"
+
+    def test_24h_departure_parsed(self) -> None:
+        nf = normalize_wizz_air(_make_wizz_result(), _WIZZ_REQ)
+        assert nf is not None
+        seg = nf.segments[0]
+        assert seg.depart_at.hour == 6
+        assert seg.depart_at.minute == 30
+
+    def test_compact_duration_parsed(self) -> None:
+        nf = normalize_wizz_air(_make_wizz_result(), _WIZZ_REQ)
+        assert nf is not None
+        assert nf.total_duration == timedelta(hours=2, minutes=45)
+
+    def test_currency_is_gbp(self) -> None:
+        nf = normalize_wizz_air(_make_wizz_result(), _WIZZ_REQ)
+        assert nf is not None
+        assert nf.currency == "GBP"
+
+    def test_eur_currency_detected(self) -> None:
+        nf = normalize_wizz_air(_make_wizz_result(price_text="€49", currency="EUR"), _WIZZ_REQ)
+        assert nf is not None
+        assert nf.currency == "EUR"
+
+    def test_missing_price_returns_none(self) -> None:
+        assert normalize_wizz_air(_make_wizz_result(price_text=""), _WIZZ_REQ) is None
+
+
 class TestNormalizeResults:
     def test_filters_unknown_adapter(self) -> None:
         wrong = SiteResult(
@@ -173,3 +249,8 @@ class TestNormalizeResults:
         good = _make_result()
         results = normalize_results([bad, good], _REQ)
         assert len(results) == 1
+
+    def test_wizz_air_dispatched(self) -> None:
+        results = normalize_results([_make_wizz_result()], _WIZZ_REQ)
+        assert len(results) == 1
+        assert results[0].currency == "GBP"

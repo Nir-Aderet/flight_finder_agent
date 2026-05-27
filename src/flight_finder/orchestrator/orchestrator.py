@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import time
+import uuid
 from datetime import datetime, timezone
 
+import structlog
 from playwright.async_api import Browser
 
+from flight_finder.common.airports import adapter_covers_route
+from flight_finder.common.cache import FlightCache
+from flight_finder.common.logging import get_logger
 from flight_finder.config import OrchestratorConfig
 from flight_finder.executors.base import (
     ExecutionContext,
@@ -28,17 +33,28 @@ class Orchestrator:
         adapters: list[SiteAdapter],
         planner: Planner,
         config: OrchestratorConfig | None = None,
+        cache: FlightCache | None = None,
     ) -> None:
         self._adapters: dict[str, SiteAdapter] = {a.name: a for a in adapters}
         self._planner = planner
         self._config = config or OrchestratorConfig()
+        self._cache = cache
 
     async def run(
         self,
         query: str | FlightSearchRequest,
         browser: Browser,
+        debug: bool = False,
     ) -> OrchestratorResult:
-        ctx = ExecutionContext(browser=browser)
+        run_id = uuid.uuid4().hex[:12]
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(run_id=run_id)
+        log = get_logger("orchestrator")
+
+        t_run = time.monotonic()
+        log.info("run.start", query=str(query)[:120])
+
+        ctx = ExecutionContext(browser=browser, debug=debug, run_id=run_id)
         prior_failures: list[FailureContext] = []
         all_flights: list[NormalizedFlight] = []
         all_audit: list[AuditRecord] = []
@@ -55,11 +71,26 @@ class Orchestrator:
 
             if resolved_query is None:
                 resolved_query = plan.query
+                if self._cache is not None:
+                    cached = await self._cache.get(resolved_query)
+                    if cached is not None:
+                        log.info("run.cache_hit", key=FlightCache.make_key(resolved_query))
+                        return cached
 
             if not plan.steps:
                 break
 
-            steps = sorted(plan.steps, key=lambda s: s.priority, reverse=True)
+            # Filter steps to adapters that cover this route (e.g. skip Wizz Air for trans-Atlantic)
+            eligible_steps = [
+                s for s in plan.steps
+                if s.adapter in self._adapters
+                and adapter_covers_route(
+                    self._adapters[s.adapter].capabilities.supported_regions,
+                    resolved_query.origin,
+                    resolved_query.destination,
+                )
+            ]
+            steps = sorted(eligible_steps, key=lambda s: s.priority, reverse=True)
             step_coros = [
                 self._run_step(step, ctx, idx, all_audit)
                 for idx, step in enumerate(steps)
@@ -81,7 +112,19 @@ class Orchestrator:
                         )
                     )
                 elif isinstance(raw, SiteResults):
-                    round_flights.extend(normalize_results(raw.results, plan.query))
+                    normalized = normalize_results(raw.results, plan.query)
+                    if normalized:
+                        round_flights.extend(normalized)
+                    else:
+                        new_failures.append(
+                            FailureContext(
+                                adapter=step.adapter,
+                                reason="no_results",
+                                detail="Adapter returned empty results",
+                                retryable=True,
+                                attempt=replan_attempt + 1,
+                            )
+                        )
                 elif isinstance(raw, SiteFailure):
                     new_failures.append(
                         FailureContext(
@@ -105,12 +148,23 @@ class Orchestrator:
             replan_attempt += 1
 
         assert resolved_query is not None
-        return OrchestratorResult(
+        deduped = dedup_flights(all_flights)
+        elapsed_ms = round((time.monotonic() - t_run) * 1000)
+        log.info(
+            "run.complete",
+            total_flights=len(deduped),
+            replan_attempts=replan_attempt,
+            elapsed_ms=elapsed_ms,
+        )
+        result = OrchestratorResult(
             query=resolved_query,
-            flights=dedup_flights(all_flights),
+            flights=deduped,
             audit=all_audit,
             replan_attempts=replan_attempt,
         )
+        if self._cache is not None:
+            await self._cache.set(resolved_query, result)
+        return result
 
     async def _run_step(
         self,

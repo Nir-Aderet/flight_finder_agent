@@ -25,8 +25,8 @@ Full design: `docs/03_design.md`.
 | Phase 1 — Architecture research | ✅ Done |
 | Phase 2 — Architecture selection | ✅ Done (Arch 1 chosen) |
 | Phase 3 — Detailed design | ✅ Done — see `docs/03_design.md`, `docs/03_agent_prompts.md`, `docs/03_repo_structure.md` |
-| Phase 4 M1 — Skeleton | ✅ Files created; awaiting `pytest -q` green confirmation |
-| Phase 4 M2 — Core models | 🔜 Next |
+| Phase 4 M1–M10 — Skeleton through CI | ✅ Done (261 tests green) |
+| Phase 5 — Hardening & GitHub CI | 🔜 Next |
 
 Active milestone tracker: `TODO.md`.
 

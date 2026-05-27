@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -17,6 +18,7 @@ class FlightSearchRequest(BaseModel):
     passengers: int = Field(default=1, ge=1, le=9)
     cabin: Literal["economy", "premium", "business", "first"] = "economy"
     max_stops: int | None = Field(default=None, ge=0)
+    max_price: Decimal | None = Field(default=None, gt=0)
     preferred_airlines: list[str] = Field(default_factory=list)
     blocked_airlines: list[str] = Field(default_factory=list)
     currency: CurrencyCode = "USD"

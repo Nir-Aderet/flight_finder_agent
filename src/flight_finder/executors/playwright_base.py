@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import contextlib
 import re
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from playwright.async_api import Page
+    from playwright.async_api import BrowserContext, Page
 
 from flight_finder.executors.base import BlockedByAntiBot
 
@@ -47,3 +50,25 @@ async def detect_anti_bot(page: Page) -> None:
 async def wait_for_results(page: Page, selector: str, timeout: int = 30_000) -> None:
     """Wait until at least one element matching *selector* is visible."""
     await page.wait_for_selector(selector, state="visible", timeout=timeout)
+
+
+async def save_debug_artifacts(
+    browser_ctx: "BrowserContext",
+    page: "Page",
+    adapter_name: str,
+) -> None:
+    """Save Playwright trace zip and screenshot to ~/.flight_finder/traces/.
+
+    Called on failure when ExecutionContext.debug is True. Silently swallows
+    any errors so the original exception is not masked.
+    """
+    trace_dir = Path.home() / ".flight_finder" / "traces"
+    with contextlib.suppress(Exception):
+        trace_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    with contextlib.suppress(Exception):
+        await browser_ctx.tracing.stop(
+            path=str(trace_dir / f"{adapter_name}_{ts}.zip")
+        )
+    with contextlib.suppress(Exception):
+        await page.screenshot(path=str(trace_dir / f"{adapter_name}_{ts}.png"))
