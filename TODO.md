@@ -96,9 +96,9 @@ Goal: a working flight finder agent, built in milestones so each step is reviewa
 
 Goal: a maintainable, CI-backed repo.
 
-- [ ] Set up GitHub Actions: lint (`ruff`), type-check (`mypy`), test (`pytest`).
-- [ ] Add CONTRIBUTING notes (how to add a new site scraper).
-- [ ] Document running locally and in a low-cost cloud VM.
+- [x] Set up GitHub Actions: lint (`ruff`), type-check (`mypy`), test (`pytest`).
+- [x] Add CONTRIBUTING notes (how to add a new site scraper).
+- [x] Document running locally and in a low-cost cloud VM.
 - [ ] Tag a `v0.1.0` release.
 
 **Exit checkpoint:** CI passes on `main`; `v0.1.0` tagged.
