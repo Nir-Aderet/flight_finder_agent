@@ -99,9 +99,9 @@ Goal: a maintainable, CI-backed repo.
 - [x] Set up GitHub Actions: lint (`ruff`), type-check (`mypy`), test (`pytest`).
 - [x] Add CONTRIBUTING notes (how to add a new site scraper).
 - [x] Document running locally and in a low-cost cloud VM.
-- [ ] Tag a `v0.1.0` release.
+- [x] Tag a `v0.1.0` release.
 
-**Exit checkpoint:** CI passes on `main`; `v0.1.0` tagged.
+**Exit checkpoint:** ✅ CI passes on `main`; `v0.1.0` tagged.
 
 ---
 
